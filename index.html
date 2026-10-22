@@ -1,0 +1,1007 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overlap · team bubble map prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;background:#E2E8F0;font-family:'Plus Jakarta Sans',system-ui,sans-serif}
+#stage{transform-origin:0 0}
+
+body{margin:0}
+a{color:#0F766E}a:hover{color:#115E59}
+button,input,textarea{font-family:inherit}
+button{transition:background-color 160ms ease,border-color 160ms ease,color 160ms ease,opacity 160ms ease}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #0F766E;outline-offset:2px}
+.ov-bubble:hover{filter:brightness(1.08)}
+.ov-card:hover{border-color:#94A3B8 !important}
+@keyframes ovPulse{0%{opacity:.35}50%{opacity:1}100%{opacity:.35}}
+.ov-thinking{animation:ovPulse 1.1s ease-in-out infinite}
+@media (prefers-reduced-motion: reduce){.ov-thinking{animation:none}}
+
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script type="module">
+import { html, render, Component } from './preact-htm.js';
+
+var W = 800, H = 700, CX = 400, CY = 350;
+var PEOPLE = {
+  maya: { name: 'Maya', role: 'Designer', color: '#2563EB' },
+  jun: { name: 'Jun', role: 'Researcher', color: '#B45309' },
+  priya: { name: 'Priya', role: 'Engineer', color: '#7C3AED' },
+  alex: { name: 'Alex', role: 'PM', color: '#BE185D' },
+  you: { name: 'You', role: 'Designer', color: '#0F172A' }
+};
+var BASE_TOPICS = [
+  { id: 'onb', label: 'Onboarding', words: ['onboard', 'new hire', 'first week', 'welcome', 'day one', 'checklist'] },
+  { id: 'pri', label: 'Pricing', words: ['price', 'pricing', 'plan', 'tier', 'seat', 'billing'] },
+  { id: 'a11y', label: 'Accessibility', words: ['accessib', 'contrast', 'screen reader', 'a11y', 'keyboard'] },
+  { id: 'srch', label: 'Search', words: ['search', 'ranking', 'autocomplete', 'query', 'results'] }
+];
+var TEAM = [
+  { id: 's1', owner: 'maya', topic: 'onb', branches: 4, title: 'First-week checklist ideas', summary: 'Brainstormed what a new hire needs in week one. Settled on a short checklist grouped by tools and people.', kw: 'onboarding checklist new hire week tools people', updated: 'Active 2 days ago' },
+  { id: 's2', owner: 'jun', topic: 'onb', branches: 3, title: 'Interviews with five new users', summary: 'Pulled themes from five onboarding interviews: setup confusion, and not knowing who to ask.', kw: 'onboarding interviews research new users stuck confusion', updated: 'Active today' },
+  { id: 's3', owner: 'priya', topic: 'onb', branches: 2, title: 'Welcome email timing', summary: 'Compared when to send the welcome email. Day one, morning, read clearest.', kw: 'onboarding email timing welcome wording', updated: 'Active 4 days ago' },
+  { id: 's4', owner: 'jun', topic: 'pri', branches: 3, title: 'Competitor pricing scan', summary: 'Compared six competitors. Most charge per seat and keep a free tier.', kw: 'pricing competitors plans seat tier', updated: 'Active yesterday' },
+  { id: 's5', owner: 'maya', topic: 'pri', branches: 2, title: 'Pricing page copy', summary: 'Tried three headline directions for the pricing page. The plainest one read clearest.', kw: 'pricing copy page headline wording', updated: 'Active 3 days ago' },
+  { id: 's6', owner: 'priya', topic: 'a11y', branches: 3, title: 'Screen reader issues on forms', summary: 'Listed form fields that screen readers skip, with possible fixes.', kw: 'accessibility screen reader forms fields', updated: 'Active yesterday' },
+  { id: 's7', owner: 'maya', topic: 'a11y', branches: 2, title: 'Color contrast fixes', summary: 'Checked button and label colors against contrast rules. Four need darker shades.', kw: 'accessibility contrast color buttons', updated: 'Active 5 days ago' },
+  { id: 's8', owner: 'priya', topic: 'srch', branches: 4, title: 'How ranking signals work', summary: 'Explained which signals push a result up, in plain words for the team.', kw: 'search ranking signals results', updated: 'Active today' },
+  { id: 's9', owner: 'jun', topic: 'srch', branches: 3, title: 'Why search feels slow', summary: 'Looked at where people wait during search. Most of the delay is before results appear.', kw: 'search slow speed research stuck waiting', updated: 'Active 2 days ago' },
+  { id: 's10', owner: 'alex', topic: 'srch', branches: 2, title: 'Autocomplete ideas', summary: 'Collected autocomplete patterns from other tools. Leaning toward showing recent searches.', kw: 'search autocomplete recent', updated: 'Active 3 days ago' }
+];
+var TEAM_QUEUE = [
+  { id: 'q1', owner: 'alex', topic: 'onb', branches: 3, title: 'Onboarding buddy program', summary: 'Sketched a buddy system so every new hire has one person to ask in week one.', kw: 'onboarding buddy new hire week people ask', updated: 'Shared just now' },
+  { id: 'q2', owner: 'jun', topic: 'pri', branches: 2, title: 'Pricing for small teams', summary: 'Looked at whether a small-team plan would confuse people choosing a tier.', kw: 'pricing small teams tier plan', updated: 'Shared just now' },
+  { id: 'q3', owner: 'maya', topic: 'a11y', branches: 2, title: 'Keyboard paths in settings', summary: 'Walked the settings page with only a keyboard. Two places trap focus.', kw: 'accessibility keyboard settings focus', updated: 'Shared just now' }
+];
+var LINKS = [
+  { a: 's2', b: 's9', text: 'both: where people get stuck' },
+  { a: 's3', b: 's5', text: 'both: wording that lands' }
+];
+var STOP = ' about after again also being could does doing each from have here into just like make more most only other over same should some still such than that their them then there these they this those very want what when where which while will with would your yours ';
+var REASONS = ['Private', 'Not sure yet', 'Not relevant'];
+var LEVELS = [
+  { id: 1, label: 'Topic only', desc: 'A bubble on the topic, without your name' },
+  { id: 2, label: 'Topic + my name', desc: 'People can find you and ask, no summary' },
+  { id: 3, label: 'Topic + name + summary', desc: 'What it is about and who to ask' }
+];
+var STARTERS = ['What do new hires usually ask in their first week?', 'How should we explain pricing tiers to small teams?', 'Which parts of our search feel confusing?'];
+
+function seedChats() {
+  return [
+    { id: 'c1', title: 'What new hires ask first', topic: 'onb', level: 3, onMap: false, summary: '', summaryEdited: false, active: 'n3', created: 'Yesterday', nodes: [
+      { id: 'n1', parent: null, q: 'What do new hires usually ask in their first week?', a: 'I grouped about 40 questions into three kinds: tools, people and expectations. Tools questions come first, then who to ask.', shared: true },
+      { id: 'n2', parent: 'n1', q: 'Turn the tools questions into a checklist.', a: 'A 12-item setup checklist, ordered by what blocks work first: accounts, access, then the first real task.', shared: true },
+      { id: 'n3', parent: 'n2', q: 'Shorter. Only what matters on day one.', a: 'Five must-dos for day one: log in, meet your buddy, set up the design file, join the team channel, ship one tiny change.', shared: true },
+      { id: 'n4', parent: 'n1', q: 'Which questions sound like someone is worried?', a: 'Six questions are about performance and fitting in. The phrasing is personal, so treat these carefully.', shared: false, reason: 'Private' },
+      { id: 'n5', parent: 'n1', q: 'Rewrite the checklist in our team’s tone.', a: 'A rough tone pass. Friendlier verbs, fewer rules. Not checked yet.', shared: false, reason: 'Not sure yet' }
+    ] },
+    { id: 'c2', title: 'Retro notes clean-up', topic: null, level: 2, onMap: false, summary: '', summaryEdited: false, active: 'm2', created: 'Monday', nodes: [
+      { id: 'm1', parent: null, q: 'Clean up these retro notes into themes.', a: 'Four themes: handoffs, unclear owners, too many meetings, and a win on the design review.', shared: false, reason: 'Private' },
+      { id: 'm2', parent: 'm1', q: 'Which ones are about people, not process?', a: 'Two notes name specific people. I would keep those out of anything shared.', shared: false, reason: 'Private' }
+    ] }
+  ];
+}
+function initialState() {
+  return {
+    view: 'map', query: '', sel: null, asked: {}, toast: '',
+    chats: seedChats(), cur: 'c1', draft: '', newTopic: '', sharePanel: false,
+    extraTopics: [], arrived: [], queueIdx: 0, motion: true,
+    feed: [
+      { owner: 'jun', text: 'added “Interviews with five new users” to Onboarding' },
+      { owner: 'priya', text: 'added “How ranking signals work” to Search' }
+    ],
+    seq: 1
+  };
+}
+function lowerFirst(t) { return t ? t.charAt(0).toLowerCase() + t.slice(1) : t; }
+function words(t) {
+  return (t || '').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(function (w) { return w.length > 4 && STOP.indexOf(' ' + w + ' ') < 0; });
+}
+function detectTopic(text, topics) {
+  var t = (text || '').toLowerCase();
+  for (var i = 0; i < topics.length; i++) {
+    var ws = topics[i].words || [topics[i].label.toLowerCase()];
+    for (var j = 0; j < ws.length; j++) if (t.indexOf(ws[j]) >= 0) return topics[i].id;
+  }
+  return null;
+}
+function makeReply(q, n) {
+  var t = q.toLowerCase();
+  if (t.indexOf('checklist') >= 0 || t.indexOf('list') >= 0) return 'A short list to start from: the one thing that blocks people most, the one person to ask, and the one task that proves it worked.';
+  if (t.indexOf('shorter') >= 0 || t.indexOf('simpler') >= 0) return 'Cut down to three points, each one sentence, ordered by what someone needs first.';
+  if (t.indexOf('price') >= 0 || t.indexOf('pricing') >= 0 || t.indexOf('tier') >= 0) return 'Small teams mostly compare on seats and the free limit. Showing one example team per tier made the choice clearer in similar products.';
+  if (t.indexOf('search') >= 0) return 'The confusing parts cluster around empty results and filters that reset. Both are fixable without changing ranking.';
+  if (t.indexOf('new hire') >= 0 || t.indexOf('onboard') >= 0 || t.indexOf('first week') >= 0) return 'Most first-week questions are about tools, people and expectations. Tools questions come first, then who to ask.';
+  if (t.indexOf('why') >= 0) return 'Three likely reasons: it was never written down, it changed recently, or it lives in someone’s head. Worth checking which before fixing.';
+  var opts = [
+    'Three ways to look at it: start from what people already do, test the riskiest part first, and keep one version simple enough to share.',
+    'Here is a first pass with two options. The first is quicker to try, the second is closer to what you described.',
+    'Grouped into three themes. The middle one has the most open questions, so it might be the one to branch on.'
+  ];
+  return opts[n % opts.length];
+}
+
+class App extends Component {
+  constructor(props) {
+    super(props);
+    this.state = initialState();
+    this.sim = {};
+    this.drag = null;
+    this.suppress = false;
+    this.tick = 0;
+  }
+  componentDidMount() {
+    var self = this;
+    try { if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) this.setState({ motion: false }); } catch (e) {}
+    this.timer = setInterval(function () {
+      if (self.state.view !== 'map') return;
+      self.step();
+      self.forceUpdate();
+    }, 33);
+  }
+  componentWillUnmount() { clearInterval(this.timer); clearTimeout(this.replyTimer); }
+
+  topics() { return BASE_TOPICS.concat(this.state.extraTopics); }
+  topicById(id) { return this.topics().filter(function (t) { return t.id === id; })[0]; }
+  curChat() { var s = this.state; return s.chats.filter(function (c) { return c.id === s.cur; })[0]; }
+  sharedNodes(c) { return c.nodes.filter(function (n) { return n.shared && n.a; }); }
+  draftSummary(c) {
+    var sh = this.sharedNodes(c);
+    if (!sh.length) return '';
+    var first = sh[0].a.split('. ')[0];
+    var last = sh.length > 1 ? sh[sh.length - 1].a.split('. ')[0] : '';
+    return 'Exploring ' + lowerFirst(c.title.replace(/[…?.!]+$/, '')) + '. ' + first + (first.slice(-1) === '.' ? '' : '.') + (last ? ' Latest: ' + lowerFirst(last) + (last.slice(-1) === '.' ? '' : '.') : '');
+  }
+  summaryOf(c) { return c.summaryEdited ? c.summary : this.draftSummary(c); }
+
+  sessions() {
+    var self = this, s = this.state;
+    var list = TEAM.slice().concat(s.arrived);
+    s.chats.forEach(function (c) {
+      if (!c.onMap) return;
+      var sh = self.sharedNodes(c);
+      var kw = c.title + ' ' + sh.map(function (n) { return n.q + ' ' + n.a; }).join(' ');
+      list.push({ id: 'mine-' + c.id, chatId: c.id, owner: 'you', topic: c.topic, branches: sh.length, title: c.title, summary: self.summaryOf(c), kw: kw, updated: 'Yours · live', mine: true, level: c.level });
+    });
+    return list;
+  }
+  hubTargets() {
+    var ts = this.topics(), n = ts.length, out = {};
+    ts.forEach(function (t, i) {
+      var ang = -Math.PI * 3 / 4 + i * (Math.PI * 2 / n);
+      out[t.id] = { x: CX + Math.cos(ang) * 245, y: CY + Math.sin(ang) * 210 };
+    });
+    return out;
+  }
+  dOf(it) { return Math.min(76, 34 + it.branches * 8); }
+  ensureSim(list, targets) {
+    var sim = this.sim, now = Date.now();
+    Object.keys(targets).forEach(function (id) {
+      if (!sim['hub-' + id]) sim['hub-' + id] = { x: CX + (targets[id].x - CX) * 0.2, y: CY + (targets[id].y - CY) * 0.2, vx: 0, vy: 0, born: now };
+    });
+    var alive = {};
+    list.forEach(function (it, i) {
+      alive[it.id] = 1;
+      if (!sim[it.id]) {
+        var h = sim['hub-' + it.topic] || { x: CX, y: CY };
+        var a = (i * 2.399) % (Math.PI * 2);
+        sim[it.id] = { x: h.x + Math.cos(a) * 30, y: h.y + Math.sin(a) * 30, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3, born: now };
+      }
+    });
+    Object.keys(sim).forEach(function (k) { if (k.indexOf('hub-') !== 0 && !alive[k]) delete sim[k]; });
+  }
+  step() {
+    var self = this, s = this.state;
+    var list = this.sessions();
+    var targets = this.hubTargets();
+    this.ensureSim(list, targets);
+    var sim = this.sim, motion = s.motion;
+    this.tick++;
+    Object.keys(targets).forEach(function (id) {
+      var h = sim['hub-' + id], t = targets[id];
+      h.vx += (t.x - h.x) * 0.02; h.vy += (t.y - h.y) * 0.02;
+      if (motion) { h.vx += Math.sin(self.tick / 50 + id.length) * 0.05; h.vy += Math.cos(self.tick / 60 + id.length * 2) * 0.05; }
+      h.vx *= 0.85; h.vy *= 0.85; h.x += h.vx; h.y += h.vy;
+    });
+    var dragId = this.drag && this.drag.moved ? this.drag.id : null;
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i], pa = sim[a.id], h = sim['hub-' + a.topic];
+      if (!pa) continue;
+      var da = this.dOf(a);
+      if (h) {
+        var dx = pa.x - h.x, dy = pa.y - h.y, dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+        var rest = 72 + da / 2;
+        var f = (dist - rest) * 0.012;
+        pa.vx -= dx / dist * f; pa.vy -= dy / dist * f;
+      }
+      for (var j = i + 1; j < list.length; j++) {
+        var b = list[j], pb = sim[b.id];
+        if (!pb) continue;
+        var ex = pb.x - pa.x, ey = pb.y - pa.y, d2 = Math.sqrt(ex * ex + ey * ey) || 0.01;
+        var min = (da + this.dOf(b)) / 2 + 30;
+        if (d2 < min) { var push = (min - d2) * 0.06; pa.vx -= ex / d2 * push; pa.vy -= ey / d2 * push; pb.vx += ex / d2 * push; pb.vy += ey / d2 * push; }
+      }
+      var avoid = [{ x: CX, y: CY, r: 95 }];
+      Object.keys(targets).forEach(function (id) { var hh = sim['hub-' + id]; avoid.push({ x: hh.x, y: hh.y, r: 82 }); });
+      avoid.forEach(function (o) {
+        var ox = pa.x - o.x, oy = pa.y - o.y, od = Math.sqrt(ox * ox + oy * oy) || 0.01, m = o.r + da / 2 - 20;
+        if (od < m) { var p = (m - od) * 0.08; pa.vx += ox / od * p; pa.vy += oy / od * p; }
+      });
+      if (motion) { pa.vx += (Math.random() - 0.5) * 0.22; pa.vy += (Math.random() - 0.5) * 0.22; }
+    }
+    list.forEach(function (it) {
+      var p = sim[it.id]; if (!p) return;
+      if (it.id === dragId) { p.vx = 0; p.vy = 0; return; }
+      p.vx *= 0.86; p.vy *= 0.86; p.x += p.vx; p.y += p.vy;
+      var r = self.dOf(it) / 2 + 6;
+      p.x = Math.max(r, Math.min(W - r, p.x)); p.y = Math.max(r + 4, Math.min(H - r - 40, p.y));
+    });
+  }
+  matches(it, q) {
+    if (!q) return true;
+    var t = this.topicById(it.topic);
+    var hay = (it.title + ' ' + it.summary + ' ' + it.kw + ' ' + (t ? t.label : '') + ' ' + PEOPLE[it.owner].name).toLowerCase();
+    return q.split(/\s+/).every(function (w) { return hay.indexOf(w) >= 0; });
+  }
+  updateChat(id, fn) {
+    var chats = this.state.chats.map(function (c) { if (c.id !== id) return c; var n = Object.assign({}, c); fn(n); return n; });
+    this.setState({ chats: chats });
+  }
+  autoLinks(list) {
+    var out = [];
+    list.forEach(function (m) {
+      if (!m.mine) return;
+      var mw = words(m.kw);
+      var best = null, bestScore = 0, bestWord = '';
+      list.forEach(function (o) {
+        if (o.mine) return;
+        var ow = words(o.kw + ' ' + o.title + ' ' + o.summary);
+        var common = mw.filter(function (w, i) { return ow.indexOf(w) >= 0 && mw.indexOf(w) === i; });
+        if (common.length > bestScore) { bestScore = common.length; best = o; bestWord = common.sort(function (x, y) { return y.length - x.length; })[0]; }
+      });
+      if (best && bestScore >= 1) out.push({ a: m.id, b: best.id, text: 'both: ' + bestWord });
+    });
+    return out;
+  }
+
+  renderVals() {
+    var self = this, s = this.state;
+    var q = (s.query || '').trim().toLowerCase();
+    var all = this.sessions();
+    var targets = this.hubTargets();
+    this.ensureSim(all, targets);
+    var sim = this.sim, now = Date.now();
+    var topics = this.topics();
+    var navBase = 'display: flex; align-items: center; gap: 10px; width: 100%; min-height: 42px; padding: 0 10px; border-radius: 10px; border: none; font-size: 14.5px; cursor: pointer; text-align: left; ';
+    function personOf(it) { return PEOPLE[it.owner]; }
+    function anon(it) { return it.mine && it.level === 1; }
+
+    var bubbles = all.map(function (it) {
+      var p = personOf(it), pos = sim[it.id];
+      var grow = Math.min(1, (now - pos.born) / 450);
+      var d = Math.round(self.dOf(it) * (0.3 + 0.7 * grow));
+      var hit = self.matches(it, q), selected = s.sel === it.id;
+      var col = anon(it) ? '#64748B' : p.color;
+      return {
+        left: (pos.x - d / 2).toFixed(1), top: (pos.y - d / 2).toFixed(1), d: d, fs: d > 50 ? 16 : 13,
+        fill: col,
+        border: '3px solid #FFFFFF',
+        op: hit ? 1 : 0.16,
+        shadow: selected ? '0 0 0 4px ' + col + '55, 0 0 0 9px ' + col + '22' : (it.mine ? '0 0 0 3px #0F172A' : 'none'),
+        initial: anon(it) ? '?' : p.name.charAt(0),
+        title: anon(it) ? 'Someone on the team' : it.title,
+        labelLeft: (pos.x - 62).toFixed(1), labelTop: (pos.y + d / 2 + 4).toFixed(1),
+        labelOp: hit ? (q || selected || d >= 50 || it.mine ? 1 : 0.85) : 0.12,
+        aria: (anon(it) ? 'Someone' : p.name) + ': ' + it.title,
+        down: function (e) {
+          try { e.currentTarget.setPointerCapture(e.pointerId); } catch (er) {}
+          self.drag = { id: it.id, sx: e.clientX, sy: e.clientY, moved: false };
+        },
+        click: function () {
+          if (self.suppress) { self.suppress = false; return; }
+          self.setState({ sel: it.id });
+        }
+      };
+    });
+
+    var lines = [];
+    function seg(x1, y1, x2, y2, extra) {
+      var dx = x2 - x1, dy = y2 - y1;
+      var o = { x: x1.toFixed(1), y: y1.toFixed(1), len: Math.sqrt(dx * dx + dy * dy).toFixed(1), deg: (Math.atan2(dy, dx) * 180 / Math.PI).toFixed(2), w: 2, dash: 'solid', color: '#CBD5E1', op: 1 };
+      for (var key in extra) o[key] = extra[key];
+      return o;
+    }
+    var halos = [], hubs = [];
+    topics.forEach(function (t) {
+      var h = sim['hub-' + t.id];
+      var inT = all.filter(function (it) { return it.topic === t.id; });
+      var ppl = {};
+      inT.forEach(function (it) { ppl[it.owner] = 1; });
+      var n = Object.keys(ppl).length;
+      var hit = !q || inT.some(function (it) { return self.matches(it, q); }) || t.label.toLowerCase().indexOf(q) >= 0;
+      var hd = 120 + n * 42;
+      halos.push({ left: (h.x - hd / 2).toFixed(1), top: (h.y - hd / 2).toFixed(1), d: hd, alpha: (0.035 + n * 0.028).toFixed(3) });
+      lines.push(seg(CX, CY, h.x, h.y, { w: 3, color: '#0F172A', op: hit ? 0.5 : 0.12 }));
+      hubs.push({
+        left: (h.x - 66).toFixed(1), top: (h.y - 23).toFixed(1),
+        label: t.label, meta: n + (n === 1 ? ' person' : ' people') + ' · ' + inT.length,
+        border: (q && hit) ? '#0F766E' : '#0F172A', op: hit ? 1 : 0.4,
+        pick: function () { self.setState({ query: t.label.toLowerCase(), sel: null }); }
+      });
+    });
+    all.forEach(function (it) {
+      var h = sim['hub-' + it.topic], p = sim[it.id];
+      if (!h || !p) return;
+      lines.push(seg(h.x, h.y, p.x, p.y, { w: 2, color: anon(it) ? '#64748B' : personOf(it).color, op: self.matches(it, q) ? 0.6 : 0.1 }));
+    });
+    var links = LINKS.concat(this.autoLinks(all));
+    var byId = {};
+    all.forEach(function (it) { byId[it.id] = it; });
+    var linkLabels = [];
+    links.forEach(function (l) {
+      var a = byId[l.a], b = byId[l.b];
+      if (!a || !b) return;
+      var pa = sim[a.id], pb = sim[b.id];
+      var on = self.matches(a, q) || self.matches(b, q);
+      var picked = s.sel === l.a || s.sel === l.b;
+      lines.push(seg(pa.x, pa.y, pb.x, pb.y, { w: 2, dash: 'dashed', color: picked ? '#0F172A' : '#64748B', op: on ? 0.85 : 0.12 }));
+      linkLabels.push({ x: ((pa.x + pb.x) / 2).toFixed(1), y: ((pa.y + pb.y) / 2).toFixed(1), text: l.text, op: picked ? 1 : (on ? 0.9 : 0.12) });
+    });
+
+    var chipLabels = topics.slice(0, 4).map(function (t) { return t.label.toLowerCase(); });
+    var chips = chipLabels.map(function (c) {
+      var on = q === c;
+      return {
+        label: c,
+        style: 'height: 46px; padding: 0 14px; border-radius: 12px; font-size: 13.5px; font-weight: 600; cursor: pointer; border: 1px solid ' + (on ? '#0F766E' : '#CBD5E1') + '; background: ' + (on ? '#F0FDFA' : '#FFFFFF') + '; color: ' + (on ? '#115E59' : '#334155'),
+        pick: function () { self.setState({ query: on ? '' : c, sel: null }); }
+      };
+    });
+
+    var selItem = byId[s.sel];
+    var sel = {};
+    if (selItem) {
+      var p = personOf(selItem), t = this.topicById(selItem.topic), an = anon(selItem);
+      var hideSummary = selItem.mine && selItem.level < 3;
+      var related = [];
+      links.forEach(function (l) {
+        var other = l.a === selItem.id ? byId[l.b] : (l.b === selItem.id ? byId[l.a] : null);
+        if (other) related.push({ title: anon(other) ? 'Someone on the team' : other.title, why: l.text, color: anon(other) ? '#64748B' : personOf(other).color, pick: function () { self.setState({ sel: other.id }); } });
+      });
+      all.forEach(function (o) {
+        if (o.topic === selItem.topic && o.id !== selItem.id && related.length < 4 && !related.some(function (r) { return r.title === o.title; })) {
+          related.push({ title: anon(o) ? 'Someone on the team' : o.title, why: 'same topic', color: anon(o) ? '#64748B' : personOf(o).color, pick: function () { self.setState({ sel: o.id }); } });
+        }
+      });
+      sel = {
+        color: an ? '#64748B' : p.color, initial: an ? '?' : p.name.charAt(0),
+        topicUpper: t ? t.label.toUpperCase() : '', topicLower: t ? t.label.toLowerCase() : '',
+        title: selItem.title, ownerName: p.name,
+        ownerLine: selItem.mine ? (selItem.level === 1 ? 'Yours · shown without your name' : 'Yours') : p.name + ' · ' + p.role,
+        updated: selItem.updated,
+        branchesText: selItem.branches + (selItem.branches === 1 ? ' branch shared' : ' branches shared'),
+        summary: hideSummary ? 'You chose not to show a summary. Teammates see the topic' + (selItem.level === 2 ? ' and your name.' : ' only.') : (selItem.summary || 'No summary yet.'),
+        summaryNote: selItem.mine ? 'Drafted by AI from your shared branches, edited by you.' : 'Drafted by AI, approved by ' + p.name + '.',
+        lockText: selItem.mine ? 'This is your chat. Only you can open it, and private branches never left it.' : 'The chat stays with ' + p.name + '. You see what it is about and who to ask, not what was said.',
+        isMine: !!selItem.mine, canAsk: !selItem.mine,
+        openMine: function () { self.setState({ view: 'chat', cur: selItem.chatId }); },
+        askLabel: s.asked[selItem.id] ? 'Asked ' + p.name : 'Ask ' + p.name + ' about this',
+        asked: !!s.asked[selItem.id],
+        hasRelated: related.length > 0, related: related
+      };
+    }
+
+    var resultItems = q ? all.filter(function (it) { return self.matches(it, q); }) : [];
+    var whoSet = {};
+    resultItems.forEach(function (it) { if (!anon(it)) whoSet[personOf(it).name] = 1; });
+    var whoNames = Object.keys(whoSet);
+    var results = resultItems.map(function (it) {
+      var tt = self.topicById(it.topic), an = anon(it);
+      return {
+        title: an ? 'Someone on the team' : it.title, ownerName: an ? 'Someone' : personOf(it).name,
+        color: an ? '#64748B' : personOf(it).color, topic: tt ? tt.label : '',
+        short: (it.mine && it.level < 3) ? 'No summary shown.' : it.summary,
+        pick: function () { self.setState({ sel: it.id }); }
+      };
+    });
+    var topicRows = topics.map(function (t) {
+      var inT = all.filter(function (it) { return it.topic === t.id; });
+      var ppl = [];
+      inT.forEach(function (it) { if (ppl.indexOf(it.owner) < 0) ppl.push(it.owner); });
+      return { label: t.label, meta: inT.length + ' chats · ' + ppl.length + ' people', dots: ppl.map(function (o) { return { color: PEOPLE[o].color }; }), pick: function () { self.setState({ query: t.label.toLowerCase(), sel: null }); } };
+    });
+
+    var c = this.curChat() || s.chats[0];
+    var shareCount = c ? this.sharedNodes(c).length : 0;
+    var order = [];
+    if (c) {
+      (function walk(parent, depth) {
+        c.nodes.filter(function (n) { return n.parent === parent; }).forEach(function (n) { order.push({ n: n, depth: depth }); walk(n.id, depth + 1); });
+      })(null, 0);
+    }
+    var numberOf = {}, byNode = {};
+    order.forEach(function (o, i) { numberOf[o.n.id] = i + 1; byNode[o.n.id] = o.n; });
+    var kidsOf = function (id) { return c ? c.nodes.filter(function (n) { return n.parent === id; }) : []; };
+    var deepest = function (id) { var k = kidsOf(id); return k.length ? deepest(k[k.length - 1].id) : id; };
+    var activeId = c && c.nodes.length ? (c.active && byNode[c.active] ? c.active : c.nodes[c.nodes.length - 1].id) : null;
+    var path = [];
+    var cursor = activeId;
+    while (cursor && byNode[cursor]) { path.unshift(byNode[cursor]); cursor = byNode[cursor].parent; }
+    var onPath = {};
+    path.forEach(function (n) { onPath[n.id] = 1; });
+    var setActive = function (id) { self.updateChat(c.id, function (cc) { cc.active = id; }); };
+    var reasonsFor = function (n) {
+      return REASONS.map(function (r) {
+        var picked = n.reason === r;
+        return { label: r, style: 'height: 30px; padding: 0 12px; border-radius: 15px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid ' + (picked ? '#0F172A' : '#CBD5E1') + '; background: ' + (picked ? '#0F172A' : '#FFFFFF') + '; color: ' + (picked ? '#FFFFFF' : '#334155'), pick: function () { self.updateChat(c.id, function (cc) { cc.nodes = cc.nodes.map(function (m) { return m.id === n.id ? Object.assign({}, m, { reason: r }) : m; }); }); } };
+      });
+    };
+    var toggleFor = function (n) { var on = !!n.shared; return function () { self.updateChat(c.id, function (cc) { cc.nodes = cc.nodes.map(function (m) { return m.id === n.id ? Object.assign({}, m, { shared: !on, reason: on ? (m.reason || 'Not sure yet') : m.reason }) : m; }); }); }; };
+    var short = function (t, n) { return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+    var msgs = path.map(function (n, i) {
+      var on = !!n.shared;
+      var next = path[i + 1];
+      var alts = kidsOf(n.id).filter(function (k) { return !next || k.id !== next.id; }).map(function (k) { return { label: short(k.q, 40), pick: function () { setActive(deepest(k.id)); } }; });
+      return {
+        q: n.q, a: n.a || '', pending: !n.a, ready: !!n.a, num: numberOf[n.id],
+        toggleLabel: on ? 'Shared to team map' : 'Private · tap to share',
+        toggleAria: (on ? 'Make private: ' : 'Share: ') + n.q,
+        toggleStyle: 'display: flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 16px; font-size: 12.5px; font-weight: 700; cursor: pointer; border: 1.5px ' + (on ? 'solid #0F766E' : 'dashed #94A3B8') + '; background: ' + (on ? '#0F766E' : '#FFFFFF') + '; color: ' + (on ? '#FFFFFF' : '#334155'),
+        toggle: toggleFor(n),
+        branch: function () { setActive(n.id); try { document.getElementById('composer').focus(); } catch (e) {} },
+        showReasons: !on && !!n.a, reasons: reasonsFor(n),
+        hasAlt: alts.length > 0, alts: alts
+      };
+    });
+    var RH = 54;
+    var railPos = {};
+    var rail = order.map(function (o, i) {
+      var n = o.n, on = !!n.shared, d = Math.min(o.depth, 6);
+      var dotX = 18 + d * 18, dotY = 10 + i * RH + 12;
+      railPos[n.id] = { x: dotX + 6, y: dotY + 6 };
+      var isA = n.id === activeId, inP = !!onPath[n.id];
+      return {
+        top: 10 + i * RH - 6 + 4, bg: isA ? '#E6F7F4' : 'transparent',
+        dotX: dotX, dotY: dotY, dotFill: on ? '#0F766E' : '#FFFFFF', dotBorder: on ? '#0F766E' : '#94A3B8',
+        ring: isA ? '0 0 0 4px rgba(15,118,110,0.25)' : 'none',
+        textX: dotX + 20, textY: dotY - 6, textW: 268 - (dotX + 20) - 14,
+        label: n.q, weight: inP ? 700 : 500, color: inP ? '#0F172A' : '#475569',
+        meta: 'Answer ' + numberOf[n.id] + ' · ' + (n.a ? (on ? 'shared' : 'private') : 'thinking…'),
+        aria: 'Go to answer ' + numberOf[n.id] + ': ' + n.q,
+        pick: function () { setActive(n.id); }
+      };
+    });
+    var railEdges = [];
+    if (c) c.nodes.forEach(function (n) {
+      var a = railPos[n.parent], b = railPos[n.id];
+      if (!a || !b) return;
+      var st = (onPath[n.id] ? '2px solid ' : '2px dashed ') + (n.shared ? '#0F766E' : '#94A3B8');
+      railEdges.push({ x: a.x - 1, y: a.y, w: 0, h: b.y - a.y, top: 'none', left: st });
+      if (b.x > a.x) railEdges.push({ x: a.x - 1, y: b.y, w: b.x - a.x, h: 0, top: st, left: 'none' });
+    });
+    var activeHasKids = activeId && kidsOf(activeId).length > 0;
+    var activeIdx = activeId ? numberOf[activeId] - 1 : -1;
+    var cTopic = c && c.topic ? this.topicById(c.topic) : null;
+    var summaryText = c ? this.summaryOf(c) : '';
+    var addBlock = '';
+    if (c && !c.nodes.length) addBlock = 'Ask something first.';
+    else if (c && shareCount === 0) addBlock = 'Share at least one branch to make a bubble.';
+    else if (c && !c.topic) addBlock = 'Pick or name a topic so it lands in the right place.';
+    var chatList = s.chats.map(function (cc) {
+      var on = s.view === 'chat' && s.cur === cc.id;
+      var shared = cc.nodes.filter(function (n) { return n.shared; }).length;
+      return {
+        title: cc.title, status: cc.onMap ? 'On the map · ' + shared + ' shared' : (cc.nodes.length ? 'Private' : 'Empty'),
+        dot: cc.onMap ? '#0F766E' : '#FFFFFF', dotBorder: cc.onMap ? '2px solid #0F766E' : '2px solid #94A3B8',
+        style: navBase + 'min-height: 48px; ' + (on ? 'background: #F0FDFA; color: #0F172A' : 'background: transparent; color: #0F172A'),
+        open: function () { self.setState({ view: 'chat', cur: cc.id }); }
+      };
+    });
+
+    function sendText(text) {
+      var t = (text || '').trim();
+      if (!t || !c) return;
+      var id = 'x' + s.seq;
+      var parent = activeId;
+      var isFirst = !c.nodes.length;
+      var chatId = c.id;
+      var allTopics = self.topics();
+      self.updateChat(chatId, function (cc) {
+        cc.nodes = cc.nodes.concat([{ id: id, parent: parent, q: t, a: null, shared: false, reason: 'Not sure yet' }]);
+        cc.active = id;
+        if (isFirst) { cc.title = t.length > 44 ? t.slice(0, 42) + '…' : t; if (!cc.topic) cc.topic = detectTopic(t, allTopics); }
+      });
+      self.setState({ draft: '', seq: s.seq + 1 });
+      var count = c.nodes.length;
+      self.replyTimer = setTimeout(function () {
+        self.updateChat(chatId, function (cc) { cc.nodes = cc.nodes.map(function (m) { return m.id === id ? Object.assign({}, m, { a: makeReply(t, count) }) : m; }); });
+      }, 900);
+    }
+
+    var simNext = TEAM_QUEUE[s.queueIdx];
+    return {
+      isMap: s.view === 'map', isChat: s.view === 'chat',
+      navMapStyle: navBase + (s.view === 'map' ? 'background: #F0FDFA; color: #115E59; font-weight: 700' : 'background: transparent; color: #334155; font-weight: 500'),
+      mapCount: all.length,
+      chatList: chatList,
+      people: ['maya', 'jun', 'priya', 'alex', 'you'].map(function (k) { return PEOPLE[k]; }),
+      motionLabel: s.motion ? 'Pause motion' : 'Play motion', motionPressed: s.motion ? 'true' : 'false',
+      toggleMotion: function () { self.setState({ motion: !s.motion }); },
+      statLine: all.length + ' shared chats · ' + topics.length + ' topics',
+      query: s.query, hasQuery: !!s.query,
+      onQuery: function (e) { self.setState({ query: e.target.value, sel: null }); },
+      clearQuery: function () { self.setState({ query: '', sel: null }); },
+      chips: chips, halos: halos, lines: lines, linkLabels: linkLabels, hubs: hubs, bubbles: bubbles,
+      center: { left: CX - 66, top: CY - 25 },
+      onMapMove: function (e) {
+        if (!self.drag) return;
+        var dx = e.clientX - self.drag.sx, dy = e.clientY - self.drag.sy;
+        if (!self.drag.moved && Math.abs(dx) + Math.abs(dy) < 5) return;
+        self.drag.moved = true;
+        var rect = e.currentTarget.getBoundingClientRect();
+        var scale = rect.width / W || 1;
+        var p = self.sim[self.drag.id];
+        if (p) { p.x = (e.clientX - rect.left) / scale; p.y = (e.clientY - rect.top) / scale; }
+      },
+      onMapUp: function () {
+        if (self.drag && self.drag.moved) self.suppress = true;
+        self.drag = null;
+      },
+      panelBubble: !!selItem, panelResults: !selItem && !!q, panelOverview: !selItem && !q,
+      sel: sel,
+      clearSel: function () { self.setState({ sel: null }); },
+      askOwner: function () { var a = Object.assign({}, s.asked); a[s.sel] = true; self.setState({ asked: a }); },
+      results: results, noResults: !!q && results.length === 0,
+      resultHeading: results.length + (results.length === 1 ? ' chat' : ' chats') + ' on “' + (s.query || '').trim() + '”',
+      resultPeople: whoNames.length ? 'People exploring this: ' + whoNames.join(', ') : 'No one yet.',
+      topicRows: topicRows,
+      feed: s.feed.slice(0, 4).map(function (f) { return { who: PEOPLE[f.owner].name, text: f.text, color: PEOPLE[f.owner].color }; }),
+      simLabel: simNext ? 'Simulate a teammate adding a chat' : 'No more teammate updates',
+      simStyle: 'height: 44px; border-radius: 12px; font-size: 13.5px; font-weight: 700; cursor: pointer; border: 1px solid #0F766E; background: #FFFFFF; color: #0F766E; opacity: ' + (simNext ? 1 : 0.5),
+      simulateTeammate: function () {
+        if (!simNext) return;
+        var tt = self.topicById(simNext.topic);
+        self.setState({ arrived: s.arrived.concat([simNext]), queueIdx: s.queueIdx + 1, feed: [{ owner: simNext.owner, text: 'added “' + simNext.title + '” to ' + tt.label }].concat(s.feed), toast: 'New on the map: “' + simNext.title + '” in ' + tt.label + '.' });
+      },
+      newChat: function () {
+        var id = 'c' + (s.seq + 10);
+        self.setState({ chats: [{ id: id, title: 'New chat', topic: null, level: 3, onMap: false, summary: '', summaryEdited: false, active: null, created: 'Just now', nodes: [] }].concat(s.chats), cur: id, view: 'chat', seq: s.seq + 1, draft: '' });
+      },
+      chatMeta: c ? 'AI chat · ' + c.nodes.length + ' answers · ' + order.filter(function (o) { return !kidsOf(o.n.id).length; }).length + ' branches' : '',
+      chatTitle: c ? c.title : '',
+      chatEmpty: c ? !c.nodes.length : false,
+      starters: STARTERS.map(function (t) { return { text: t, pick: function () { sendText(t); } }; }),
+      msgs: msgs, rail: rail, railEdges: railEdges, railH: 20 + order.length * RH, railEmpty: !order.length,
+      showBranchBanner: !!activeHasKids,
+      branchBanner: activeHasKids ? 'Branching from answer ' + (activeIdx + 1) + '. Your next message starts a new branch.' : '',
+      backToLatest: function () { setActive(deepest(activeId)); },
+      sharePanel: !!s.sharePanel,
+      openShare: function () { self.setState({ sharePanel: !s.sharePanel }); },
+      closeShare: function () { self.setState({ sharePanel: false }); },
+      shareBtnLabel: (c && c.onMap ? 'On team map · ' : 'Share to team map · ') + shareCount + ' shared',
+      shareBtnStyle: 'margin-left: auto; flex-shrink: 0; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 12px; font-size: 13.5px; font-weight: 700; cursor: pointer; ' + (s.sharePanel ? 'border: 1px solid #0F766E; background: #F0FDFA; color: #115E59' : 'border: none; background: #0F766E; color: #FFFFFF'),
+      
+      draft: s.draft,
+      onDraft: function (e) { self.setState({ draft: e.target.value }); },
+      onDraftKey: function (e) { if (e.key === 'Enter') { e.preventDefault(); sendText(e.target.value); } },
+      send: function () { sendText(s.draft); },
+      previewD: Math.max(36, Math.min(76, 34 + shareCount * 8)),
+      previewColor: c && c.level === 1 ? '#64748B' : '#0F172A',
+      previewInitial: c && c.level === 1 ? '?' : 'Y',
+      previewTopic: cTopic ? cTopic.label.toUpperCase() : 'NO TOPIC YET',
+      previewTitle: c && c.level === 1 ? 'Someone on the team' : (c ? c.title : ''),
+      previewCount: shareCount + ' of ' + (c ? c.nodes.length : 0) + ' answers shape this bubble',
+      topicChoices: topics.map(function (t) {
+        var on = c && c.topic === t.id;
+        return { label: t.label, style: 'height: 34px; padding: 0 12px; border-radius: 17px; font-size: 12.5px; font-weight: 600; cursor: pointer; border: 1px solid ' + (on ? '#0F766E' : '#CBD5E1') + '; background: ' + (on ? '#0F766E' : '#FFFFFF') + '; color: ' + (on ? '#FFFFFF' : '#334155'), pick: function () { self.updateChat(c.id, function (cc) { cc.topic = t.id; }); } };
+      }),
+      newTopic: s.newTopic,
+      onNewTopic: function (e) { self.setState({ newTopic: e.target.value }); },
+      addTopic: function () {
+        var label = (s.newTopic || '').trim();
+        if (!label || !c) return;
+        var id = 't' + s.seq;
+        var nice = label.charAt(0).toUpperCase() + label.slice(1);
+        self.setState({ extraTopics: s.extraTopics.concat([{ id: id, label: nice, words: [label.toLowerCase()] }]), newTopic: '', seq: s.seq + 1 });
+        self.updateChat(c.id, function (cc) { cc.topic = id; });
+      },
+      summaryText: summaryText,
+      onSummary: function (e) { var v = e.target.value; self.updateChat(c.id, function (cc) { cc.summary = v; cc.summaryEdited = true; }); },
+      redraft: function () { self.updateChat(c.id, function (cc) { cc.summaryEdited = false; cc.summary = ''; }); },
+      summaryHint: c && c.summaryEdited ? 'Edited by you. Only shared branches are used for drafts.' : 'Drafted by AI from shared branches only. Edit it freely.',
+      levels: LEVELS.map(function (l) {
+        var on = c && c.level === l.id;
+        return { label: l.label, desc: l.desc, style: 'display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; padding: 9px 13px; border-radius: 12px; cursor: pointer; color: #0F172A; border: 1.5px solid ' + (on ? '#0F766E' : '#E2E8F0') + '; background: ' + (on ? '#F0FDFA' : '#FFFFFF'), pick: function () { self.updateChat(c.id, function (cc) { cc.level = l.id; }); } };
+      }),
+      canAddHint: !!addBlock && !(c && c.onMap), addHint: addBlock,
+      onMapNow: !!(c && c.onMap),
+      mapActionLabel: c && c.onMap ? 'Remove from team map' : 'Add to team map',
+      mapActionStyle: 'margin-top: 4px; height: 50px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; ' + (c && c.onMap ? 'border: 1px solid #CBD5E1; background: #FFFFFF; color: #334155' : 'border: none; background: #0F766E; color: #FFFFFF; opacity: ' + (addBlock ? 0.45 : 1)),
+      mapAction: function () {
+        if (!c) return;
+        if (c.onMap) { self.updateChat(c.id, function (cc) { cc.onMap = false; }); self.setState({ toast: 'Removed from the map. Your chat is unchanged.' }); return; }
+        if (addBlock) { self.setState({ toast: addBlock }); return; }
+        var tt = self.topicById(c.topic);
+        var chats = s.chats.map(function (cc) { return cc.id === c.id ? Object.assign({}, cc, { onMap: true }) : cc; });
+        self.setState({ chats: chats, view: 'map', query: '', sel: 'mine-' + c.id, feed: [{ owner: 'you', text: 'added “' + c.title + '” to ' + tt.label }].concat(s.feed), toast: 'Your bubble joined ' + tt.label + '. Your chat stays with you.' });
+      },
+      viewOnMap: function () { self.setState({ view: 'map', sel: 'mine-' + c.id, query: '' }); },
+      goMap: function () { self.setState({ view: 'map' }); },
+      showToast: !!s.toast, toast: s.toast,
+      hideToast: function () { self.setState({ toast: '' }); },
+      resetDemo: function () { self.sim = {}; self.drag = null; self.setState(initialState()); }
+    };
+  }
+}
+
+App.prototype.render = function () {
+  const v = this.renderVals();
+  return html`<div style="width: 1440px; height: 900px; display: flex; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #0F172A; background: #F3F6F6; overflow: hidden; position: relative">
+
+  <nav style="width: 232px; flex-shrink: 0; background: #FFFFFF; border-right: 1px solid #E2E8F0; display: flex; flex-direction: column; padding: 22px 14px; box-sizing: border-box; gap: 4px">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px 20px 8px">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="11.5" cy="15" r="8.5" fill="#0F766E"/><circle cx="19" cy="15" r="8.5" fill="none" stroke="#0F172A" stroke-width="2.2"/></svg>
+      <div style="font-weight: 800; font-size: 20px; letter-spacing: -0.4px">Overlap</div>
+    </div>
+    <button onClick=${v.newChat} style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 44px; margin: 0 4px 12px 4px; border-radius: 12px; border: none; background: #0F766E; color: #FFFFFF; font-size: 14px; font-weight: 700; cursor: pointer">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      New chat
+    </button>
+    <button onClick=${v.goMap} style=${v.navMapStyle}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="9" r="4"/><circle cx="16" cy="15" r="5"/><circle cx="17" cy="5" r="2"/></svg>
+      <span>Team map</span>
+      <span style="margin-left: auto; font-size: 12px; color: #64748B">${v.mapCount}</span>
+    </button>
+    <div style="margin-top: 16px; padding: 0 10px 6px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.7px; color: #64748B">MY CHATS</div>
+    <div style="display: flex; flex-direction: column; gap: 2px; overflow-y: auto; max-height: 300px">
+      ${((v.chatList)||[]).map((c, $index)=>html`
+        <button onClick=${c.open} style=${c.style}>
+          <span style=${`width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; background: ${c.dot}; border: ${c.dotBorder}`}></span>
+          <span style="display: flex; flex-direction: column; min-width: 0; text-align: left">
+            <span style="font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">${c.title}</span>
+            <span style="font-size: 11.5px; color: #64748B">${c.status}</span>
+          </span>
+        </button>
+      `)}
+    </div>
+    <div style="margin-top: 16px; padding: 0 10px 6px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.7px; color: #64748B">TEAM</div>
+    <div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px">
+      ${((v.people)||[]).map((p, $index)=>html`
+        <span style="display: flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 4px 9px 4px 5px; border-radius: 14px; background: #F1F5F9"><span style=${`width: 14px; height: 14px; border-radius: 50%; background: ${p.color}`}></span>${p.name}</span>
+      `)}
+    </div>
+    <div style="margin-top: auto; padding: 12px; border-radius: 12px; background: #F0FDFA; border: 1px solid #CCFBF1; font-size: 12px; line-height: 1.5; color: #134E4A">
+      <div style="display: flex; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 3px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        Private by default
+      </div>
+      Nobody can open your chats. Only branches you share shape your bubble.
+    </div>
+    <div style="display: flex; gap: 6px; margin-top: 8px">
+      <button onClick=${v.toggleMotion} aria-pressed=${v.motionPressed} style="flex: 1; height: 36px; border-radius: 10px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #334155; font-size: 12px; font-weight: 600; cursor: pointer">${v.motionLabel}</button>
+      <button onClick=${v.resetDemo} style="flex: 1; height: 36px; border-radius: 10px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #334155; font-size: 12px; font-weight: 600; cursor: pointer">Reset demo</button>
+    </div>
+  </nav>
+
+  ${(v.isMap) ? html`
+  <main style="flex: 1; display: flex; min-width: 0">
+    <section style="flex: 1; display: flex; flex-direction: column; padding: 22px 24px; box-sizing: border-box; min-width: 0">
+      <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 16px">
+        <div>
+          <div style="font-size: 13px; color: #64748B; font-weight: 500">Design team · live</div>
+          <h1 style="margin: 2px 0 0 0; font-size: 26px; font-weight: 800; letter-spacing: -0.5px">Where our thinking overlaps</h1>
+        </div>
+        <div style="font-size: 13px; color: #475569; font-weight: 500">${v.statLine}</div>
+      </div>
+      <div style="margin-top: 16px; display: flex; align-items: center; gap: 8px">
+        <label for="mapsearch" style="flex: 1; display: flex; align-items: center; gap: 10px; background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 12px; padding: 0 14px; height: 46px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+          <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search the team map</span>
+          <input id="mapsearch" type="text" placeholder="Search a topic or a word, like onboarding" value=${v.query} onInput=${v.onQuery} style="flex: 1; border: none; outline: none; font-size: 15px; background: transparent; color: #0F172A"/>
+          ${(v.hasQuery) ? html`
+            <button onClick=${v.clearQuery} aria-label="Clear search" style="width: 32px; height: 32px; border-radius: 8px; border: none; background: #F1F5F9; color: #475569; cursor: pointer; font-size: 16px">×</button>
+          ` : null}
+        </label>
+        ${((v.chips)||[]).map((c, $index)=>html`
+          <button onClick=${c.pick} style=${c.style}>${c.label}</button>
+        `)}
+      </div>
+
+      <div onPointerMove=${v.onMapMove} onPointerUp=${v.onMapUp} onPointerLeave=${v.onMapUp} style="position: relative; margin-top: 14px; width: 800px; height: 700px; align-self: center; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 20px; overflow: hidden; touch-action: none">
+        <div style="position: absolute; inset: 0; background-image: radial-gradient(#E2E8F0 1px, transparent 1px); background-size: 22px 22px; opacity: 0.7"></div>
+        ${((v.halos)||[]).map((h, $index)=>html`
+          <div style=${`position: absolute; left: ${h.left}px; top: ${h.top}px; width: ${h.d}px; height: ${h.d}px; border-radius: 50%; background: rgba(15,118,110,${h.alpha})`}></div>
+        `)}
+        ${((v.lines)||[]).map((ln, $index)=>html`
+          <div style=${`position: absolute; left: ${ln.x}px; top: ${ln.y}px; width: ${ln.len}px; height: 0; border-top: ${ln.w}px ${ln.dash} ${ln.color}; transform: rotate(${ln.deg}deg); transform-origin: 0 0; opacity: ${ln.op}; pointer-events: none`}></div>
+        `)}
+        ${((v.linkLabels)||[]).map((ll, $index)=>html`
+          <div style=${`position: absolute; left: ${ll.x}px; top: ${ll.y}px; transform: translate(-50%, -50%); background: #FFFFFF; border: 1px dashed #64748B; border-radius: 10px; padding: 2px 8px; font-size: 11px; font-weight: 600; color: #334155; white-space: nowrap; opacity: ${ll.op}; pointer-events: none`}>${ll.text}</div>
+        `)}
+        <div style=${`position: absolute; left: ${v.center.left}px; top: ${v.center.top}px; width: 132px; height: 50px; border-radius: 25px; background: #0F172A; color: #FFFFFF; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; line-height: 1.15; pointer-events: none`}>Design team<span style="font-size: 11px; font-weight: 500; color: #CBD5E1">this week</span></div>
+        ${((v.hubs)||[]).map((k, $index)=>html`
+          <button onClick=${k.pick} style=${`position: absolute; left: ${k.left}px; top: ${k.top}px; min-width: 132px; height: 46px; padding: 0 14px; border-radius: 23px; background: #FFFFFF; border: 2px solid ${k.border}; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; color: #0F172A; opacity: ${k.op}`}><span style="font-size: 14px; font-weight: 800">${k.label}</span><span style="font-size: 11px; color: #475569; font-weight: 500">${k.meta}</span></button>
+        `)}
+        ${((v.bubbles)||[]).map((b, $index)=>html`
+          <button class="ov-bubble" onPointerDown=${b.down} onClick=${b.click} aria-label=${b.aria} style=${`position: absolute; left: ${b.left}px; top: ${b.top}px; width: ${b.d}px; height: ${b.d}px; border-radius: 50%; border: ${b.border}; background: ${b.fill}; opacity: ${b.op}; box-shadow: ${b.shadow}; color: #FFFFFF; font-weight: 800; font-size: ${b.fs}px; cursor: grab; display: flex; align-items: center; justify-content: center; padding: 0; touch-action: none`}>${b.initial}</button>
+          <div style=${`position: absolute; left: ${b.labelLeft}px; top: ${b.labelTop}px; width: 124px; text-align: center; font-size: 11px; font-weight: 600; line-height: 1.25; color: #334155; opacity: ${b.labelOp}; pointer-events: none`}>${b.title}</div>
+        `)}
+        <div style="position: absolute; left: 14px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 14px; font-size: 11.5px; font-weight: 500; color: #334155; background: rgba(255,255,255,0.94); padding: 8px 12px; border-radius: 10px; border: 1px solid #E2E8F0; max-width: 600px">
+          <span>Bubble = one shared chat, colored by person</span>
+          <span>Bigger = more branches shared</span>
+          <span>Halo = how many people on a topic</span>
+          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 18px; border-top: 2px dashed #64748B"></span>related across topics</span>
+        </div>
+        <div style="position: absolute; right: 14px; bottom: 12px; font-size: 11.5px; color: #475569; background: rgba(255,255,255,0.94); padding: 8px 12px; border-radius: 10px; border: 1px solid #E2E8F0">Drag bubbles to move them</div>
+      </div>
+    </section>
+
+    <aside style="width: 360px; flex-shrink: 0; background: #FFFFFF; border-left: 1px solid #E2E8F0; padding: 24px 22px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px; overflow-y: auto">
+      ${(v.panelBubble) ? html`
+        <button onClick=${v.clearSel} style="align-self: flex-start; border: none; background: transparent; color: #475569; font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px 0">← Overview</button>
+        <div style="display: flex; align-items: center; gap: 12px">
+          <span style=${`width: 46px; height: 46px; border-radius: 50%; background: ${v.sel.color}; color: #FFFFFF; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0`}>${v.sel.initial}</span>
+          <div style="min-width: 0">
+            <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.6px; color: #0F766E">${v.sel.topicUpper}</div>
+            <div style="font-size: 19px; font-weight: 800; line-height: 1.25; letter-spacing: -0.2px">${v.sel.title}</div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; font-weight: 500; color: #334155">
+          <span style="background: #F1F5F9; border-radius: 8px; padding: 4px 10px">${v.sel.ownerLine}</span>
+          <span style="background: #F1F5F9; border-radius: 8px; padding: 4px 10px">${v.sel.branchesText}</span>
+        </div>
+        <div style="border: 1px solid #E2E8F0; border-radius: 14px; padding: 16px">
+          <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.6px; color: #64748B; margin-bottom: 6px">WHAT IT'S ABOUT</div>
+          <div style="font-size: 15px; line-height: 1.55">${v.sel.summary}</div>
+          <div style="font-size: 12px; color: #64748B; margin-top: 10px">${v.sel.summaryNote}</div>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: flex-start; background: #F8FAFC; border-radius: 12px; padding: 13px; font-size: 13px; line-height: 1.5; color: #334155">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 1px"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          <span>${v.sel.lockText}</span>
+        </div>
+        ${(v.sel.isMine) ? html`
+          <button onClick=${v.sel.openMine} style="height: 48px; border-radius: 12px; border: none; background: #0F172A; color: #FFFFFF; font-size: 15px; font-weight: 700; cursor: pointer">Open my chat</button>
+        ` : null}
+        ${(v.sel.canAsk) ? html`
+          <button onClick=${v.askOwner} style="height: 48px; border-radius: 12px; border: none; background: #0F766E; color: #FFFFFF; font-size: 15px; font-weight: 700; cursor: pointer">${v.sel.askLabel}</button>
+          <button disabled=${true} style="height: 42px; border-radius: 12px; border: 1px dashed #94A3B8; background: #FFFFFF; color: #475569; font-size: 13.5px; font-weight: 500; cursor: not-allowed">Open chat · only ${v.sel.ownerName} can</button>
+        ` : null}
+        ${(v.sel.asked) ? html`
+          <div style="border-radius: 12px; background: #F0FDFA; border: 1px solid #99F6E4; padding: 13px; font-size: 14px; line-height: 1.5; color: #134E4A">Sent to ${v.sel.ownerName}: “Saw your chat on ${v.sel.topicLower}. Got 10 minutes to talk it through?”</div>
+        ` : null}
+        ${(v.sel.hasRelated) ? html`
+          <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.6px; color: #64748B; margin-top: 4px">CONNECTED ON THE MAP</div>
+          ${((v.sel.related)||[]).map((n, $index)=>html`
+            <button class="ov-card" onClick=${n.pick} style="display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid #E2E8F0; background: #FFFFFF; border-radius: 12px; padding: 10px 12px; cursor: pointer; font-size: 14px; color: #0F172A; min-height: 44px">
+              <span style=${`width: 12px; height: 12px; border-radius: 50%; background: ${n.color}; flex-shrink: 0`}></span>
+              <span style="flex: 1; font-weight: 600">${n.title}</span>
+              <span style="font-size: 11.5px; color: #475569">${n.why}</span>
+            </button>
+          `)}
+        ` : null}
+      ` : null}
+
+      ${(v.panelResults) ? html`
+        <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.6px; color: #64748B">SEARCH</div>
+        <div style="font-size: 20px; font-weight: 800; line-height: 1.3; letter-spacing: -0.2px">${v.resultHeading}</div>
+        <div style="font-size: 13px; color: #475569; line-height: 1.5">${v.resultPeople}</div>
+        ${((v.results)||[]).map((r, $index)=>html`
+          <button class="ov-card" onClick=${r.pick} style="display: flex; flex-direction: column; gap: 4px; text-align: left; border: 1px solid #E2E8F0; background: #FFFFFF; border-radius: 14px; padding: 13px 14px; cursor: pointer; color: #0F172A">
+            <span style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: #334155"><span style=${`width: 10px; height: 10px; border-radius: 50%; background: ${r.color}`}></span>${r.ownerName} · ${r.topic}</span>
+            <span style="font-size: 15px; font-weight: 700">${r.title}</span>
+            <span style="font-size: 13px; color: #334155; line-height: 1.45">${r.short}</span>
+          </button>
+        `)}
+        ${(v.noResults) ? html`
+          <div style="font-size: 14px; color: #334155; line-height: 1.5">Nobody has shared anything on this yet. You might be the first.</div>
+          <button onClick=${v.newChat} style="height: 44px; border-radius: 12px; border: 1px solid #0F766E; background: #FFFFFF; color: #0F766E; font-size: 14px; font-weight: 700; cursor: pointer">Start a chat on it</button>
+        ` : null}
+      ` : null}
+
+      ${(v.panelOverview) ? html`
+        <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.6px; color: #64748B">OVERVIEW</div>
+        <div style="font-size: 14px; color: #334155; line-height: 1.55">Each bubble is part of someone's AI chat they chose to share. You see what it is about and who to talk to, never the chat itself.</div>
+        <button onClick=${v.simulateTeammate} style=${v.simStyle}>${v.simLabel}</button>
+        <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.6px; color: #64748B; margin-top: 4px">NEW ON THE MAP</div>
+        ${((v.feed)||[]).map((f, $index)=>html`
+          <div style="display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.45; color: #334155">
+            <span style=${`width: 10px; height: 10px; border-radius: 50%; background: ${f.color}; margin-top: 4px; flex-shrink: 0`}></span>
+            <span><span style="font-weight: 700; color: #0F172A">${f.who}</span> ${f.text}</span>
+          </div>
+        `)}
+        <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.6px; color: #64748B; margin-top: 6px">TOPICS</div>
+        ${((v.topicRows)||[]).map((t, $index)=>html`
+          <button class="ov-card" onClick=${t.pick} style="display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid #E2E8F0; background: #FFFFFF; border-radius: 12px; padding: 10px 14px; cursor: pointer; color: #0F172A; min-height: 48px">
+            <span style="flex: 1; display: flex; flex-direction: column"><span style="font-size: 14.5px; font-weight: 700">${t.label}</span><span style="font-size: 12px; color: #475569">${t.meta}</span></span>
+            <span style="display: flex">
+              ${((t.dots)||[]).map((d, $index)=>html`
+                <span style=${`width: 18px; height: 18px; border-radius: 50%; background: ${d.color}; border: 2px solid #FFFFFF; margin-left: -5px`}></span>
+              `)}
+            </span>
+          </button>
+        `)}
+      ` : null}
+    </aside>
+  </main>
+  ` : null}
+
+  ${(v.isChat) ? html`
+  <main style="flex: 1; display: flex; min-width: 0">
+    <section style="width: 268px; flex-shrink: 0; background: #FAFBFC; border-right: 1px solid #E2E8F0; display: flex; flex-direction: column; min-height: 0">
+      <div style="padding: 20px 16px 10px 18px">
+        <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.6px; color: #64748B">BRANCH MAP</div>
+        <div style="font-size: 12.5px; color: #475569; line-height: 1.45; margin-top: 4px">The whole chat at a glance. Click an answer to go back to it.</div>
+        <div style="display: flex; gap: 12px; margin-top: 8px; font-size: 11.5px; color: #334155; font-weight: 500">
+          <span style="display: flex; align-items: center; gap: 5px"><span style="width: 10px; height: 10px; border-radius: 50%; background: #0F766E"></span>Shared</span>
+          <span style="display: flex; align-items: center; gap: 5px"><span style="width: 10px; height: 10px; border-radius: 50%; border: 2px solid #94A3B8; box-sizing: border-box"></span>Private</span>
+        </div>
+      </div>
+      <div style="flex: 1; overflow: auto; min-height: 0">
+        ${(v.railEmpty) ? html`<div style="padding: 10px 18px; font-size: 12.5px; color: #64748B">Your branches appear here as you chat.</div>` : null}
+        <div style=${`position: relative; width: 268px; height: ${v.railH}px`}>
+          ${((v.railEdges)||[]).map((e, $index)=>html`
+            <div style=${`position: absolute; left: ${e.x}px; top: ${e.y}px; width: ${e.w}px; height: ${e.h}px; border-top: ${e.top}; border-left: ${e.left}; pointer-events: none`}></div>
+          `)}
+          ${((v.rail)||[]).map((r, $index)=>html`
+            <button onClick=${r.pick} aria-label=${r.aria} style=${`position: absolute; left: 6px; top: ${r.top}px; width: 256px; height: 50px; border: none; border-radius: 10px; background: ${r.bg}; cursor: pointer; padding: 0`}></button>
+            <span style=${`position: absolute; left: ${r.dotX}px; top: ${r.dotY}px; width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box; background: ${r.dotFill}; border: 2px solid ${r.dotBorder}; box-shadow: ${r.ring}; pointer-events: none`}></span>
+            <span style=${`position: absolute; left: ${r.textX}px; top: ${r.textY}px; width: ${r.textW}px; display: flex; flex-direction: column; pointer-events: none`}>
+              <span style=${`font-size: 12.5px; font-weight: ${r.weight}; color: ${r.color}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis`}>${r.label}</span>
+              <span style="font-size: 11px; color: #64748B; white-space: nowrap">${r.meta}</span>
+            </span>
+          `)}
+        </div>
+      </div>
+    </section>
+
+    <section style="flex: 1; display: flex; flex-direction: column; min-width: 0; background: #FFFFFF">
+      <div style="padding: 16px 24px; border-bottom: 1px solid #E2E8F0; display: flex; align-items: center; gap: 12px">
+        <div style="min-width: 0">
+          <div style="font-size: 12px; color: #64748B; font-weight: 500">${v.chatMeta}</div>
+          <h1 style="margin: 2px 0 0 0; font-size: 20px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">${v.chatTitle}</h1>
+        </div>
+        <button onClick=${v.openShare} style=${v.shareBtnStyle}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="10" r="4"/><circle cx="16" cy="15" r="5"/></svg>
+          ${v.shareBtnLabel}
+        </button>
+      </div>
+      <div style="flex: 1; overflow-y: auto; min-height: 0">
+        <div style="max-width: 720px; margin: 0 auto; padding: 24px 24px 12px 24px; display: flex; flex-direction: column; gap: 22px">
+          ${(v.chatEmpty) ? html`
+          <div style="margin: 60px auto 0 auto; max-width: 440px; text-align: center; color: #475569; font-size: 15px; line-height: 1.6">
+            <div style="font-size: 18px; font-weight: 800; color: #0F172A; margin-bottom: 6px">Start a new chat</div>
+            Ask anything below. It stays private until you choose branches to share.
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 16px">
+              ${((v.starters)||[]).map((st, $index)=>html`
+                <button class="ov-card" onClick=${st.pick} style="border: 1px solid #E2E8F0; background: #FFFFFF; border-radius: 12px; padding: 12px 14px; font-size: 14px; color: #0F172A; cursor: pointer; text-align: left; min-height: 44px">${st.text}</button>
+              `)}
+            </div>
+          </div>
+        ` : null}
+          ${((v.msgs)||[]).map((m, $index)=>html`
+            <div style="display: flex; flex-direction: column; gap: 12px">
+              <div style="align-self: flex-end; max-width: 78%; background: #0F172A; color: #FFFFFF; border-radius: 18px 18px 4px 18px; padding: 11px 15px; font-size: 15px; line-height: 1.5">${m.q}</div>
+              <div style="display: flex; gap: 12px; align-items: flex-start">
+                <span style="width: 30px; height: 30px; border-radius: 50%; background: #CCFBF1; color: #115E59; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/></svg></span>
+                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 9px">
+                  ${(m.pending) ? html`<span class="ov-thinking" style="font-size: 15px; color: #475569; padding-top: 4px">Thinking…</span>` : null}
+                  ${(m.ready) ? html`<div style="font-size: 15px; line-height: 1.6; color: #1E293B; padding-top: 4px">${m.a}</div>` : null}
+                  ${(m.ready) ? html`
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+                      <button onClick=${m.toggle} aria-label=${m.toggleAria} style=${m.toggleStyle}>${m.toggleLabel}</button>
+                      <button onClick=${m.branch} style="display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid #CBD5E1; background: #FFFFFF; color: #334155; font-size: 12.5px; font-weight: 600; cursor: pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="9" r="2"/><path d="M6 7v10M18 11c0 4-6 3-12 6"/></svg>Branch from here</button>
+                      <span style="font-size: 12px; color: #64748B; font-weight: 500">Answer ${m.num}</span>
+                    </div>
+                  ` : null}
+                  ${(m.showReasons) ? html`
+                    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap">
+                      <span style="font-size: 12px; color: #475569; font-weight: 500">Why it stays private:</span>
+                      ${((m.reasons)||[]).map((r, $index)=>html`
+                        <button onClick=${r.pick} style=${r.style}>${r.label}</button>
+                      `)}
+                    </div>
+                  ` : null}
+                  ${(m.hasAlt) ? html`
+                    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 8px 10px; border-radius: 12px; background: #F8FAFC; border: 1px dashed #CBD5E1">
+                      <span style="font-size: 12px; color: #475569; font-weight: 600">Other branches from here:</span>
+                      ${((m.alts)||[]).map((al, $index)=>html`
+                        <button onClick=${al.pick} style="height: 30px; max-width: 260px; padding: 0 12px; border-radius: 15px; border: 1px solid #CBD5E1; background: #FFFFFF; color: #0F172A; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">${al.label}</button>
+                      `)}
+                    </div>
+                  ` : null}
+                </div>
+              </div>
+            </div>
+          `)}
+        </div>
+      </div>
+      <div style="padding: 10px 24px 18px 24px">
+        <div style="max-width: 720px; margin: 0 auto">
+          ${(v.showBranchBanner) ? html`
+            <div style="display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: #115E59; background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 12px; padding: 8px 12px; margin-bottom: 8px">
+              <span style="flex: 1">${v.branchBanner}</span>
+              <button onClick=${v.backToLatest} style="border: none; background: transparent; color: #0F766E; font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 4px">Back to latest</button>
+            </div>
+          ` : null}
+          <div style="display: flex; gap: 8px; align-items: center; border: 1px solid #CBD5E1; border-radius: 16px; padding: 6px 6px 6px 16px; background: #FFFFFF">
+            <label for="composer" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message</label>
+            <input id="composer" type="text" value=${v.draft} onInput=${v.onDraft} onKeyDown=${v.onDraftKey} placeholder="Message AI…" style="flex: 1; height: 44px; border: none; outline: none; font-size: 15px; color: #0F172A; background: transparent"/>
+            <button onClick=${v.send} aria-label="Send" style="width: 44px; height: 44px; border-radius: 12px; border: none; background: #0F172A; color: #FFFFFF; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+          </div>
+          <div style="font-size: 11.5px; color: #64748B; margin-top: 6px; text-align: center">Private by default. Nothing reaches the team until you mark answers Shared.</div>
+        </div>
+      </div>
+    </section>
+
+    ${(v.sharePanel) ? html`
+    <aside style="width: 340px; flex-shrink: 0; background: #FFFFFF; border-left: 1px solid #E2E8F0; padding: 24px 22px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; overflow-y: auto">
+      <div style="display: flex; align-items: center"><div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.6px; color: #64748B">SHARE TO TEAM MAP</div><button onClick=${v.closeShare} aria-label="Close share panel" style="margin-left: auto; width: 36px; height: 36px; border-radius: 10px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #334155; font-size: 18px; cursor: pointer">×</button></div><div style="font-size: 13px; color: #475569; line-height: 1.5; margin-top: -4px">Only answers marked Shared shape this bubble. The chat itself is never shown.</div>
+      <div style="display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 14px; background: #F8FAFC; border: 1px solid #E2E8F0">
+        <span style=${`width: ${v.previewD}px; height: ${v.previewD}px; border-radius: 50%; background: ${v.previewColor}; color: #FFFFFF; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0`}>${v.previewInitial}</span>
+        <div style="min-width: 0">
+          <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.6px; color: #0F766E">${v.previewTopic}</div>
+          <div style="font-size: 15px; font-weight: 700; line-height: 1.3">${v.previewTitle}</div>
+          <div style="font-size: 12px; color: #475569; margin-top: 2px">${v.previewCount}</div>
+        </div>
+      </div>
+      <div style="font-size: 13px; font-weight: 700; margin-top: 2px">Topic</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 6px">
+        ${((v.topicChoices)||[]).map((tc, $index)=>html`
+          <button onClick=${tc.pick} style=${tc.style}>${tc.label}</button>
+        `)}
+      </div>
+      <div style="display: flex; gap: 6px">
+        <label for="newtopic" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">New topic name</label>
+        <input id="newtopic" type="text" value=${v.newTopic} onInput=${v.onNewTopic} placeholder="Or name a new topic" style="flex: 1; height: 38px; border-radius: 10px; border: 1px solid #CBD5E1; padding: 0 12px; font-size: 13.5px; color: #0F172A"/>
+        <button onClick=${v.addTopic} style="height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid #0F766E; background: #FFFFFF; color: #0F766E; font-size: 13px; font-weight: 700; cursor: pointer">Add</button>
+      </div>
+      <div style="display: flex; align-items: baseline; justify-content: space-between; margin-top: 2px">
+        <label for="summary" style="font-size: 13px; font-weight: 700">Summary</label>
+        <button onClick=${v.redraft} style="border: none; background: transparent; color: #0F766E; font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 6px 0">Redraft from shared</button>
+      </div>
+      <textarea id="summary" value=${v.summaryText} onInput=${v.onSummary} rows="4" style="border: 1px solid #CBD5E1; border-radius: 12px; padding: 11px 12px; font-size: 14px; line-height: 1.5; resize: none; color: #0F172A"></textarea>
+      <div style="font-size: 12px; color: #475569; margin-top: -4px">${v.summaryHint}</div>
+      <div style="font-size: 13px; font-weight: 700; margin-top: 2px">Show on the map</div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        ${((v.levels)||[]).map((l, $index)=>html`
+          <button onClick=${l.pick} style=${l.style}><span style="font-weight: 700; font-size: 13.5px">${l.label}</span><span style="font-size: 12px; color: #475569">${l.desc}</span></button>
+        `)}
+      </div>
+      ${(v.canAddHint) ? html`
+        <div style="font-size: 12.5px; color: #9A3412; background: #FFF7ED; border-radius: 10px; padding: 10px 12px; line-height: 1.45">${v.addHint}</div>
+      ` : null}
+      <button onClick=${v.mapAction} style=${v.mapActionStyle}>${v.mapActionLabel}</button>
+      ${(v.onMapNow) ? html`
+        <button onClick=${v.viewOnMap} style="height: 40px; border-radius: 12px; border: 1px solid #CBD5E1; background: #FFFFFF; color: #334155; font-size: 13.5px; font-weight: 600; cursor: pointer">See it on the map</button>
+      ` : null}
+    </aside>
+    ` : null}
+  </main>
+  ` : null}
+
+  ${(v.showToast) ? html`
+    <div role="status" style="position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); background: #0F172A; color: #FFFFFF; border-radius: 14px; padding: 13px 18px; font-size: 14px; font-weight: 500; display: flex; gap: 14px; align-items: center">
+      <span>${v.toast}</span>
+      <button onClick=${v.hideToast} style="border: none; background: transparent; color: #99F6E4; font-size: 13.5px; font-weight: 700; cursor: pointer; padding: 6px">Dismiss</button>
+    </div>
+  ` : null}
+</div>`;
+};
+const stage = document.getElementById('stage');
+function fit() {
+  const s = Math.min(window.innerWidth / 1440, window.innerHeight / 900);
+  stage.style.transform = 'scale(' + s + ')';
+  stage.style.width = '1440px'; stage.style.height = '900px';
+  stage.style.marginLeft = Math.max(0, (window.innerWidth - 1440 * s) / 2) + 'px';
+}
+window.addEventListener('resize', fit); fit();
+render(html`<${App} />`, stage);
+</script>
+</body>
+</html>
